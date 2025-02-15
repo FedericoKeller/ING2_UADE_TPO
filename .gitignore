@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build output
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+mongodb_data/
+redis_data/
+neo4j_data/
+cassandra_data/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+
+populate-demo-data.js

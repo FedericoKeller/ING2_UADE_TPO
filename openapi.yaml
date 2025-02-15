@@ -1,0 +1,917 @@
+openapi: 3.1.0
+info:
+  title: E-commerce Polyglot API
+  version: 1.0.0
+  description: API para plataforma de comercio electrónico con persistencia poliglota
+
+servers:
+  - url: http://localhost:3000/api
+    description: Servidor de desarrollo
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      required:
+        - email
+        - firstName
+        - lastName
+      properties:
+        _id:
+          type: string
+          format: mongodb-objectid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [user, admin]
+          default: user
+        category:
+          type: string
+          enum: [TOP, MEDIUM, LOW]
+          default: LOW
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Product:
+      type: object
+      required:
+        - name
+        - description
+        - sku
+        - category
+        - price
+        - stock
+        - images
+      properties:
+        _id:
+          type: string
+          format: mongodb-objectid
+        name:
+          type: string
+        description:
+          type: string
+        sku:
+          type: string
+        category:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        stock:
+          type: integer
+          minimum: 0
+          default: 0
+        images:
+          type: array
+          items:
+            type: string
+        specifications:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CartItem:
+      type: object
+      required:
+        - productId
+        - quantity
+        - price
+        - name
+      properties:
+        productId:
+          type: string
+          format: mongodb-objectid
+        quantity:
+          type: integer
+          minimum: 1
+        price:
+          type: number
+          minimum: 0
+        name:
+          type: string
+
+    Cart:
+      type: object
+      required:
+        - userId
+        - items
+        - total
+      properties:
+        userId:
+          type: string
+          format: mongodb-objectid
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+        total:
+          type: number
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OrderItem:
+      type: object
+      required:
+        - product
+        - quantity
+        - price
+      properties:
+        product:
+          type: string
+          format: mongodb-objectid
+        quantity:
+          type: integer
+          minimum: 1
+        price:
+          type: number
+          minimum: 0
+
+    ShippingAddress:
+      type: object
+      required:
+        - street
+        - city
+        - state
+        - zipCode
+        - country
+      properties:
+        street:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zipCode:
+          type: string
+        country:
+          type: string
+
+    PaymentInfo:
+      type: object
+      required:
+        - method
+        - transactionId
+      properties:
+        method:
+          type: string
+          enum: [credit_card, debit_card, transfer]
+        transactionId:
+          type: string
+        status:
+          type: string
+          enum: [pending, completed, failed]
+          default: pending
+
+    Order:
+      type: object
+      required:
+        - user
+        - items
+        - total
+        - shippingAddress
+        - paymentInfo
+      properties:
+        _id:
+          type: string
+          format: mongodb-objectid
+        user:
+          type: string
+          format: mongodb-objectid
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        total:
+          type: number
+          minimum: 0
+        status:
+          type: string
+          enum: [pending, processing, shipped, delivered, cancelled]
+          default: pending
+        shippingAddress:
+          $ref: '#/components/schemas/ShippingAddress'
+        paymentInfo:
+          $ref: '#/components/schemas/PaymentInfo'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PriceHistory:
+      type: object
+      required:
+        - productId
+        - price
+        - timestamp
+      properties:
+        productId:
+          type: string
+          format: mongodb-objectid
+        price:
+          type: number
+          minimum: 0
+        timestamp:
+          type: string
+          format: date-time
+        currency:
+          type: string
+          default: USD
+
+    ProductChange:
+      type: object
+      required:
+        - productId
+        - changeType
+        - timestamp
+      properties:
+        productId:
+          type: string
+          format: mongodb-objectid
+        timestamp:
+          type: string
+          format: date-time
+        changeType:
+          type: string
+          enum: [create, update, delete]
+        oldValue:
+          type: string
+        newValue:
+          type: string
+
+paths:
+  /auth/register:
+    post:
+      summary: Registrar nuevo usuario
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - firstName
+                - lastName
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 6
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+      responses:
+        '201':
+          description: Usuario registrado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /auth/login:
+    post:
+      summary: Iniciar sesión
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /auth/logout:
+    post:
+      summary: Cerrar sesión
+      tags:
+        - Autenticación
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logout exitoso
+
+  /auth/profile:
+    get:
+      summary: Obtener perfil del usuario
+      tags:
+        - Autenticación
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Perfil del usuario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  recommendations:
+                    type: object
+                    properties:
+                      products:
+                        type: array
+                        items:
+                          type: string
+                      similarUsers:
+                        type: array
+                        items:
+                          type: string
+
+  /products:
+    get:
+      summary: Listar productos
+      tags:
+        - Productos
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de productos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  totalPages:
+                    type: integer
+                  hasMore:
+                    type: boolean
+
+    post:
+      summary: Crear producto
+      tags:
+        - Productos
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - description
+                - sku
+                - category
+                - price
+                - stock
+                - images
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                sku:
+                  type: string
+                category:
+                  type: string
+                price:
+                  type: number
+                  minimum: 0
+                stock:
+                  type: integer
+                  minimum: 0
+                images:
+                  type: array
+                  items:
+                    type: string
+                specifications:
+                  type: object
+      responses:
+        '201':
+          description: Producto creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+  /products/{id}:
+    get:
+      summary: Obtener producto específico
+      tags:
+        - Productos
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalles del producto
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product:
+                    $ref: '#/components/schemas/Product'
+                  priceHistory:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        price:
+                          type: number
+                        timestamp:
+                          type: string
+                          format: date-time
+                  changes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        changeType:
+                          type: string
+                        timestamp:
+                          type: string
+                          format: date-time
+                        changes:
+                          type: object
+
+    put:
+      summary: Actualizar producto
+      tags:
+        - Productos
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '200':
+          description: Producto actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+    delete:
+      summary: Eliminar producto
+      tags:
+        - Productos
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Producto eliminado
+
+  /products/{id}/analytics:
+    get:
+      summary: Obtener análisis de precios
+      tags:
+        - Productos
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Análisis de precios
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  averagePrice:
+                    type: number
+                  volatility:
+                    type: object
+                    properties:
+                      changes:
+                        type: integer
+                      volatility:
+                        type: number
+                  period:
+                    type: object
+                    properties:
+                      start:
+                        type: string
+                        format: date-time
+                      end:
+                        type: string
+                        format: date-time
+
+  /cart:
+    get:
+      summary: Obtener carrito actual
+      tags:
+        - Carrito
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Carrito actual
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+
+    delete:
+      summary: Limpiar carrito
+      tags:
+        - Carrito
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Carrito limpiado
+
+  /cart/add:
+    post:
+      summary: Agregar item al carrito
+      tags:
+        - Carrito
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - productId
+                - quantity
+              properties:
+                productId:
+                  type: string
+                quantity:
+                  type: integer
+                  minimum: 1
+      responses:
+        '200':
+          description: Item agregado al carrito
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+
+  /cart/{productId}:
+    delete:
+      summary: Eliminar item del carrito
+      tags:
+        - Carrito
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Item eliminado del carrito
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+
+  /cart/history:
+    get:
+      summary: Obtener historial del carrito
+      tags:
+        - Carrito
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Historial del carrito
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Cart'
+
+  /cart/revert/{stateIndex}:
+    post:
+      summary: Revertir carrito a estado anterior
+      tags:
+        - Carrito
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: stateIndex
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Carrito revertido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+
+  /orders:
+    post:
+      summary: Crear pedido
+      tags:
+        - Pedidos
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - shippingAddress
+                - paymentInfo
+              properties:
+                shippingAddress:
+                  type: object
+                  required:
+                    - street
+                    - city
+                    - state
+                    - zipCode
+                    - country
+                  properties:
+                    street:
+                      type: string
+                    city:
+                      type: string
+                    state:
+                      type: string
+                    zipCode:
+                      type: string
+                    country:
+                      type: string
+                paymentInfo:
+                  type: object
+                  required:
+                    - method
+                    - transactionId
+                  properties:
+                    method:
+                      type: string
+                      enum: [credit_card, debit_card, transfer]
+                    transactionId:
+                      type: string
+      responses:
+        '201':
+          description: Pedido creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+    get:
+      summary: Listar pedidos
+      tags:
+        - Pedidos
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, processing, shipped, delivered, cancelled]
+      responses:
+        '200':
+          description: Lista de pedidos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  totalPages:
+                    type: integer
+                  hasMore:
+                    type: boolean
+
+  /orders/{id}:
+    get:
+      summary: Obtener pedido específico
+      tags:
+        - Pedidos
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalles del pedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /orders/{id}/status:
+    patch:
+      summary: Actualizar estado del pedido
+      tags:
+        - Pedidos
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [pending, processing, shipped, delivered, cancelled]
+      responses:
+        '200':
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /orders/{id}/payment:
+    patch:
+      summary: Actualizar estado del pago
+      tags:
+        - Pedidos
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [pending, completed, failed]
+      responses:
+        '200':
+          description: Estado del pago actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order' 

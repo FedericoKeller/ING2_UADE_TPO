@@ -1,0 +1,41 @@
+{
+  "name": "ing2_uade_tpo",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsx ./src/app.ts",
+    "dev": "tsx watch ./src/app.ts",
+    "populate": "npm run clean-db && npx tsc populate-demo-data.ts && node populate-demo-data.js",
+    "clean-db": "tsx ./scripts/clean-db.ts",
+    "build": "tsc"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/helmet": "^0.0.48",
+    "@types/jsonwebtoken": "^9.0.8",
+    "@types/mongoose": "^5.11.96",
+    "@types/node": "^22.13.4",
+    "@types/redis": "^4.0.11",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "argon2": "^0.41.1",
+    "axios": "^1.7.9",
+    "cassandra-driver": "^4.7.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-validator": "^7.2.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.13.0",
+    "mongoose": "^8.10.0",
+    "neo4j-driver": "^5.18.0",
+    "redis": "^4.6.13"
+  }
+}
