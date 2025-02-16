@@ -164,14 +164,23 @@ export class AuthController {
       const token = authHeader.split(' ')[1];
       const decoded = jwt.verify(token, config.jwt.secret) as { userId: string };
 
+      console.log('Token decoded userId:', decoded.userId);
+
       const user = await User.findById(decoded.userId);
       if (!user) {
         res.status(404).json({ error: 'User not found' });
         return;
       }
 
-      const recommendedProducts = await Neo4jService.getProductRecommendations(decoded.userId);
-      const similarUsers = await Neo4jService.findSimilarUsers(decoded.userId);
+      console.log('Found user:', {
+        id: user._id.toString(),
+        email: user.email,
+        category: user.category
+      });
+
+      const userId = user._id.toString();
+      const recommendedProducts = await Neo4jService.getProductRecommendations(userId);
+      const similarUsers = await Neo4jService.findSimilarUsers(userId);
 
       res.json({
         user: {
@@ -183,7 +192,11 @@ export class AuthController {
         },
         recommendations: {
           products: recommendedProducts,
-          similarUsers,
+          similarUsers: similarUsers.map(user => ({
+            id: user.id,
+            fullName: `${user.firstName} ${user.lastName}`,
+            commonInteractions: user.commonInteractions
+          }))
         },
       });
     } catch (error) {

@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import swaggerUi from 'swagger-ui-express';
 import { connectDatabases, closeDatabases } from './config/database';
+import { swaggerSpec } from './config/swagger';
 import config from './config/config';
 
 // Import routes
@@ -21,6 +23,13 @@ app.use(express.json());
 // Initialize Cassandra schema
 import { CassandraService } from './services/cassandra.service';
 CassandraService.initializeSchema().catch(console.error);
+
+// Swagger Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -60,4 +69,5 @@ process.on('SIGTERM', async () => {
 // Start server
 const server = app.listen(config.port, () => {
   console.log(`Server is running on port ${config.port}`);
+  console.log(`Swagger documentation available at http://localhost:${config.port}/api-docs`);
 }); 

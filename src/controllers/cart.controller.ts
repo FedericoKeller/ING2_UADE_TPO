@@ -45,7 +45,7 @@ export class CartController {
       const cart = await RedisService.addToCart(userId, cartItem);
 
       // Record interaction in Neo4j
-      await Neo4jService.recordUserInteraction(userId, productId, 'ADD_TO_CART');
+      await Neo4jService.recordUserInteraction(userId, productId, 'ADD_TO_CART', product.name);
 
       res.json(cart);
     } catch (error) {
@@ -59,6 +59,12 @@ export class CartController {
       const userId = req.user!._id.toString();
       const { productId } = req.params;
 
+      const product = await Product.findById(productId);
+      if (!product) {
+        res.status(404).json({ error: 'Product not found' });
+        return;
+      }
+
       const cart = await RedisService.removeFromCart(userId, productId);
       if (!cart) {
         res.status(404).json({ error: 'Cart not found' });
@@ -66,7 +72,7 @@ export class CartController {
       }
 
       // Record interaction in Neo4j
-      await Neo4jService.recordUserInteraction(userId, productId, 'REMOVE_FROM_CART');
+      await Neo4jService.recordUserInteraction(userId, productId, 'REMOVE_FROM_CART', product.name);
 
       res.json(cart);
     } catch (error) {

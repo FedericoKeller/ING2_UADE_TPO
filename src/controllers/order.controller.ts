@@ -183,4 +183,48 @@ export class OrderController {
       res.status(500).json({ error: 'Error updating payment status' });
     }
   }
+
+  static async getOrderAnalytics(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate } = req.query;
+      const start = startDate ? new Date(startDate as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default to last 30 days
+      const end = endDate ? new Date(endDate as string) : new Date();
+
+      // Build query
+      const query: any = {
+        createdAt: {
+          $gte: start,
+          $lte: end
+        }
+      };
+
+      // Get orders within date range
+      const orders = await Order.find(query);
+
+      // Calculate analytics
+      const totalOrders = orders.length;
+      const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
+      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+      // Count orders by status
+      const ordersByStatus = orders.reduce((acc: { [key: string]: number }, order) => {
+        acc[order.status] = (acc[order.status] || 0) + 1;
+        return acc;
+      }, {});
+
+      res.json({
+        totalOrders,
+        totalRevenue,
+        averageOrderValue,
+        ordersByStatus,
+        period: {
+          start,
+          end
+        }
+      });
+    } catch (error) {
+      console.error('Get order analytics error:', error);
+      res.status(500).json({ error: 'Error retrieving order analytics' });
+    }
+  }
 } 

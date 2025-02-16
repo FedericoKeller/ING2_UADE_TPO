@@ -19,7 +19,7 @@ mongosh ecommerce
 ```javascript
 db.users.find()
 db.users.find({ role: "admin" })
-db.users.find({ email: "admin@demo.com" })
+db.users.find({ category: "TOP" })
 ```
 
 2. **Ver productos**:
@@ -33,6 +33,15 @@ db.products.find({ price: { $lt: 1000 } })
 ```javascript
 db.orders.find()
 db.orders.find({ status: "pending" })
+db.orders.aggregate([
+  {
+    $group: {
+      _id: "$status",
+      count: { $sum: 1 },
+      totalRevenue: { $sum: "$total" }
+    }
+  }
+])
 ```
 
 ## Redis
@@ -60,6 +69,9 @@ KEYS cart:*
 
 # Ver contenido de un carrito específico
 GET cart:userId
+
+# Ver historial de un carrito
+LRANGE cart_history:userId 0 -1
 ```
 
 3. **Ver sesiones**:
@@ -102,19 +114,31 @@ MATCH (n) RETURN n;
 2. **Ver usuarios y sus categorías**:
 ```cypher
 MATCH (u:User) 
-RETURN u.userId, u.email, u.category, u.createdAt;
+RETURN u.email, u.category;
 ```
 
-3. **Ver interacciones usuario-producto**:
+3. **Ver productos más interactuados**:
 ```cypher
-MATCH (u:User)-[r:INTERACTED]->(p:Product)
-RETURN u.email, r.action, r.timestamp, p.productId;
+MATCH (p:Product)<-[r:INTERACTED]-() 
+RETURN p.productId, COUNT(r) as interactions 
+ORDER BY interactions DESC;
 ```
 
-4. **Ver pedidos**:
+4. **Ver pedidos y relaciones**:
 ```cypher
 MATCH (u:User)-[r:PLACED_ORDER]->(o:Order)
 RETURN u.email, o.orderId, o.total, o.timestamp;
+```
+
+5. **Encontrar usuarios similares**:
+```cypher
+MATCH (u1:User {userId: "userId"})-[r1:INTERACTED]->(p:Product)
+MATCH (p)<-[r2:INTERACTED]-(u2:User)
+WHERE u1 <> u2
+WITH u2, COUNT(DISTINCT p) as commonInteractions
+ORDER BY commonInteractions DESC
+LIMIT 5
+RETURN u2.email, commonInteractions;
 ```
 
 ## Cassandra
@@ -142,17 +166,31 @@ USE ecommerce;
 
 3. **Ver historial de precios**:
 ```sql
-SELECT * FROM price_history WHERE product_id = 'id_producto';
+SELECT * FROM price_history 
+WHERE product_id = 'id_producto' 
+ORDER BY timestamp DESC;
 ```
 
 4. **Ver cambios en productos**:
 ```sql
-SELECT * FROM product_changes WHERE product_id = 'id_producto';
+SELECT * FROM product_changes 
+WHERE product_id = 'id_producto' 
+ORDER BY timestamp DESC;
 ```
 
-5. **Ver precio promedio**:
+5. **Análisis de precios**:
 ```sql
-SELECT AVG(price) FROM price_history WHERE product_id = 'id_producto';
+# Precio promedio
+SELECT AVG(price) FROM price_history 
+WHERE product_id = 'id_producto';
+
+# Volatilidad de precios
+SELECT COUNT(*) as changes,
+       MAX(price) - MIN(price) as price_range
+FROM price_history 
+WHERE product_id = 'id_producto'
+AND timestamp >= 'start_date'
+AND timestamp <= 'end_date';
 ```
 
 ## Ejemplos de Uso Común
@@ -191,4 +229,46 @@ ORDER BY timestamp DESC;
 ```cypher
 MATCH (p:Product {productId: 'id_producto'})<-[r:INTERACTED]-(u:User)
 RETURN u.email, r.action, r.timestamp;
+```
+
+### 3. Análisis de Ventas
+1. Ver estadísticas de pedidos en MongoDB:
+```javascript
+db.orders.aggregate([
+  {
+    $match: {
+      createdAt: {
+        $gte: ISODate("start_date"),
+        $lte: ISODate("end_date")
+      }
+    }
+  },
+  {
+    $group: {
+      _id: null,
+      totalOrders: { $sum: 1 },
+      totalRevenue: { $sum: "$total" },
+      averageOrderValue: { $avg: "$total" }
+    }
+  }
+])
+```
+
+2. Ver usuarios top en Neo4j:
+```cypher
+MATCH (u:User)
+WHERE u.category = 'TOP'
+RETURN u.email, u.category;
+```
+
+3. Ver tendencias de precios en Cassandra:
+```sql
+SELECT product_id, 
+       COUNT(*) as price_changes,
+       MAX(price) as max_price,
+       MIN(price) as min_price
+FROM price_history
+WHERE timestamp >= 'start_date'
+AND timestamp <= 'end_date'
+GROUP BY product_id;
 ```

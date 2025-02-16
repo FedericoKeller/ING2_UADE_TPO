@@ -3,6 +3,9 @@ info:
   title: E-commerce Polyglot API
   version: 1.0.0
   description: API para plataforma de comercio electrónico con persistencia poliglota
+  contact:
+    name: Equipo de Desarrollo
+    url: https://github.com/yourusername/ING2_UADE_TPO
 
 servers:
   - url: http://localhost:3000/api
@@ -255,9 +258,6 @@ components:
         productId:
           type: string
           format: mongodb-objectid
-        timestamp:
-          type: string
-          format: date-time
         changeType:
           type: string
           enum: [create, update, delete]
@@ -265,37 +265,146 @@ components:
           type: string
         newValue:
           type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    OrderAnalytics:
+      type: object
+      properties:
+        totalOrders:
+          type: integer
+        totalRevenue:
+          type: number
+        averageOrderValue:
+          type: number
+        ordersByStatus:
+          type: object
+          additionalProperties:
+            type: integer
+        period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+
+    ProductAnalytics:
+      type: object
+      properties:
+        averagePrice:
+          type: number
+        volatility:
+          type: object
+          properties:
+            changes:
+              type: integer
+            volatility:
+              type: number
+        period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+
+    ProductRecommendation:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: mongodb-objectid
+          description: ID del producto recomendado
+        name:
+          type: string
+          description: Nombre del producto recomendado
+
+    SimilarUser:
+      type: object
+      required:
+        - id
+        - email
+        - firstName
+        - lastName
+        - commonInteractions
+      properties:
+        id:
+          type: string
+          format: mongodb-objectid
+          description: ID del usuario similar
+        email:
+          type: string
+          format: email
+          description: Email del usuario similar
+        firstName:
+          type: string
+          description: Nombre del usuario similar
+        lastName:
+          type: string
+          description: Apellido del usuario similar
+        commonInteractions:
+          type: integer
+          description: Número de interacciones en común
+          minimum: 0
+
+    UserProfile:
+      type: object
+      required:
+        - user
+        - recommendations
+      properties:
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: mongodb-objectid
+            email:
+              type: string
+              format: email
+            firstName:
+              type: string
+            lastName:
+              type: string
+            category:
+              type: string
+              enum: [TOP, MEDIUM, LOW]
+        recommendations:
+          type: object
+          properties:
+            products:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProductRecommendation'
+              description: Lista de productos recomendados
+            similarUsers:
+              type: array
+              items:
+                $ref: '#/components/schemas/SimilarUser'
+              description: Lista de usuarios con intereses similares
 
 paths:
   /auth/register:
     post:
-      summary: Registrar nuevo usuario
-      tags:
-        - Autenticación
+      tags: [Auth]
+      summary: Registrar un nuevo usuario
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - email
-                - password
-                - firstName
-                - lastName
-              properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-                  minLength: 6
-                firstName:
-                  type: string
-                lastName:
-                  type: string
+              $ref: '#/components/schemas/User'
       responses:
-        '201':
+        201:
           description: Usuario registrado exitosamente
           content:
             application/json:
@@ -306,12 +415,13 @@ paths:
                     type: string
                   user:
                     $ref: '#/components/schemas/User'
+        400:
+          description: Datos inválidos o email ya registrado
 
   /auth/login:
     post:
+      tags: [Auth]
       summary: Iniciar sesión
-      tags:
-        - Autenticación
       requestBody:
         required: true
         content:
@@ -328,7 +438,7 @@ paths:
                 password:
                   type: string
       responses:
-        '200':
+        200:
           description: Login exitoso
           content:
             application/json:
@@ -339,52 +449,43 @@ paths:
                     type: string
                   user:
                     $ref: '#/components/schemas/User'
+        401:
+          description: Credenciales inválidas
 
   /auth/logout:
     post:
+      tags: [Auth]
       summary: Cerrar sesión
-      tags:
-        - Autenticación
       security:
         - BearerAuth: []
       responses:
-        '200':
-          description: Logout exitoso
+        200:
+          description: Sesión cerrada exitosamente
+        401:
+          description: No autorizado
 
   /auth/profile:
     get:
-      summary: Obtener perfil del usuario
-      tags:
-        - Autenticación
+      summary: Obtener perfil del usuario y recomendaciones
+      tags: [Auth]
       security:
         - BearerAuth: []
       responses:
-        '200':
-          description: Perfil del usuario
+        200:
+          description: Perfil del usuario con recomendaciones
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  user:
-                    $ref: '#/components/schemas/User'
-                  recommendations:
-                    type: object
-                    properties:
-                      products:
-                        type: array
-                        items:
-                          type: string
-                      similarUsers:
-                        type: array
-                        items:
-                          type: string
+                $ref: '#/components/schemas/UserProfile'
+        401:
+          description: No autorizado
+        404:
+          description: Usuario no encontrado
 
   /products:
     get:
+      tags: [Products]
       summary: Listar productos
-      tags:
-        - Productos
       parameters:
         - in: query
           name: page
@@ -408,8 +509,8 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: Lista de productos
+        200:
+          description: Lista paginada de productos
           content:
             application/json:
               schema:
@@ -429,9 +530,8 @@ paths:
                     type: boolean
 
     post:
-      summary: Crear producto
-      tags:
-        - Productos
+      tags: [Products]
+      summary: Crear un nuevo producto
       security:
         - BearerAuth: []
       requestBody:
@@ -439,49 +539,23 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - name
-                - description
-                - sku
-                - category
-                - price
-                - stock
-                - images
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                sku:
-                  type: string
-                category:
-                  type: string
-                price:
-                  type: number
-                  minimum: 0
-                stock:
-                  type: integer
-                  minimum: 0
-                images:
-                  type: array
-                  items:
-                    type: string
-                specifications:
-                  type: object
+              $ref: '#/components/schemas/Product'
       responses:
-        '201':
-          description: Producto creado
+        201:
+          description: Producto creado exitosamente
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Product'
+        401:
+          description: No autorizado
+        403:
+          description: No tiene permisos de administrador
 
   /products/{id}:
     get:
-      summary: Obtener producto específico
-      tags:
-        - Productos
+      tags: [Products]
+      summary: Obtener detalles de un producto
       parameters:
         - in: path
           name: id
@@ -489,7 +563,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        200:
           description: Detalles del producto
           content:
             application/json:
@@ -501,30 +575,17 @@ paths:
                   priceHistory:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        price:
-                          type: number
-                        timestamp:
-                          type: string
-                          format: date-time
+                      $ref: '#/components/schemas/PriceHistory'
                   changes:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        changeType:
-                          type: string
-                        timestamp:
-                          type: string
-                          format: date-time
-                        changes:
-                          type: object
+                      $ref: '#/components/schemas/ProductChange'
+        404:
+          description: Producto no encontrado
 
     put:
-      summary: Actualizar producto
-      tags:
-        - Productos
+      tags: [Products]
+      summary: Actualizar un producto
       security:
         - BearerAuth: []
       parameters:
@@ -540,17 +601,22 @@ paths:
             schema:
               $ref: '#/components/schemas/Product'
       responses:
-        '200':
-          description: Producto actualizado
+        200:
+          description: Producto actualizado exitosamente
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Product'
+        401:
+          description: No autorizado
+        403:
+          description: No tiene permisos de administrador
+        404:
+          description: Producto no encontrado
 
     delete:
-      summary: Eliminar producto
-      tags:
-        - Productos
+      tags: [Products]
+      summary: Eliminar un producto
       security:
         - BearerAuth: []
       parameters:
@@ -560,14 +626,19 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: Producto eliminado
+        200:
+          description: Producto eliminado exitosamente
+        401:
+          description: No autorizado
+        403:
+          description: No tiene permisos de administrador
+        404:
+          description: Producto no encontrado
 
   /products/{id}/analytics:
     get:
-      summary: Obtener análisis de precios
-      tags:
-        - Productos
+      tags: [Products]
+      summary: Obtener análisis de precios de un producto
       security:
         - BearerAuth: []
       parameters:
@@ -587,62 +658,50 @@ paths:
             type: string
             format: date-time
       responses:
-        '200':
-          description: Análisis de precios
+        200:
+          description: Análisis de precios del producto
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  averagePrice:
-                    type: number
-                  volatility:
-                    type: object
-                    properties:
-                      changes:
-                        type: integer
-                      volatility:
-                        type: number
-                  period:
-                    type: object
-                    properties:
-                      start:
-                        type: string
-                        format: date-time
-                      end:
-                        type: string
-                        format: date-time
+                $ref: '#/components/schemas/ProductAnalytics'
+        401:
+          description: No autorizado
+        403:
+          description: No tiene permisos de administrador
+        404:
+          description: Producto no encontrado
 
   /cart:
     get:
-      summary: Obtener carrito actual
-      tags:
-        - Carrito
+      tags: [Cart]
+      summary: Obtener el carrito actual
       security:
         - BearerAuth: []
       responses:
-        '200':
+        200:
           description: Carrito actual
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Cart'
+        401:
+          description: No autorizado
 
     delete:
-      summary: Limpiar carrito
-      tags:
-        - Carrito
+      tags: [Cart]
+      summary: Vaciar el carrito
       security:
         - BearerAuth: []
       responses:
-        '200':
-          description: Carrito limpiado
+        200:
+          description: Carrito vaciado exitosamente
+        401:
+          description: No autorizado
 
   /cart/add:
     post:
-      summary: Agregar item al carrito
-      tags:
-        - Carrito
+      tags: [Cart]
+      summary: Agregar un producto al carrito
       security:
         - BearerAuth: []
       requestBody:
@@ -661,18 +720,23 @@ paths:
                   type: integer
                   minimum: 1
       responses:
-        '200':
-          description: Item agregado al carrito
+        200:
+          description: Producto agregado al carrito
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Cart'
+        400:
+          description: Datos inválidos o stock insuficiente
+        401:
+          description: No autorizado
+        404:
+          description: Producto no encontrado
 
   /cart/{productId}:
     delete:
-      summary: Eliminar item del carrito
-      tags:
-        - Carrito
+      tags: [Cart]
+      summary: Eliminar un producto del carrito
       security:
         - BearerAuth: []
       parameters:
@@ -682,22 +746,25 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: Item eliminado del carrito
+        200:
+          description: Producto eliminado del carrito
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Cart'
+        401:
+          description: No autorizado
+        404:
+          description: Carrito o producto no encontrado
 
   /cart/history:
     get:
+      tags: [Cart]
       summary: Obtener historial del carrito
-      tags:
-        - Carrito
       security:
         - BearerAuth: []
       responses:
-        '200':
+        200:
           description: Historial del carrito
           content:
             application/json:
@@ -705,12 +772,13 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Cart'
+        401:
+          description: No autorizado
 
   /cart/revert/{stateIndex}:
     post:
-      summary: Revertir carrito a estado anterior
-      tags:
-        - Carrito
+      tags: [Cart]
+      summary: Revertir el carrito a un estado anterior
       security:
         - BearerAuth: []
       parameters:
@@ -721,72 +789,21 @@ paths:
             type: integer
             minimum: 0
       responses:
-        '200':
-          description: Carrito revertido
+        200:
+          description: Carrito revertido exitosamente
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Cart'
+        401:
+          description: No autorizado
+        404:
+          description: Estado no encontrado
 
   /orders:
-    post:
-      summary: Crear pedido
-      tags:
-        - Pedidos
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - shippingAddress
-                - paymentInfo
-              properties:
-                shippingAddress:
-                  type: object
-                  required:
-                    - street
-                    - city
-                    - state
-                    - zipCode
-                    - country
-                  properties:
-                    street:
-                      type: string
-                    city:
-                      type: string
-                    state:
-                      type: string
-                    zipCode:
-                      type: string
-                    country:
-                      type: string
-                paymentInfo:
-                  type: object
-                  required:
-                    - method
-                    - transactionId
-                  properties:
-                    method:
-                      type: string
-                      enum: [credit_card, debit_card, transfer]
-                    transactionId:
-                      type: string
-      responses:
-        '201':
-          description: Pedido creado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-
     get:
+      tags: [Orders]
       summary: Listar pedidos
-      tags:
-        - Pedidos
       security:
         - BearerAuth: []
       parameters:
@@ -809,8 +826,8 @@ paths:
             type: string
             enum: [pending, processing, shipped, delivered, cancelled]
       responses:
-        '200':
-          description: Lista de pedidos
+        200:
+          description: Lista paginada de pedidos
           content:
             application/json:
               schema:
@@ -828,12 +845,44 @@ paths:
                     type: integer
                   hasMore:
                     type: boolean
+        401:
+          description: No autorizado
+
+    post:
+      tags: [Orders]
+      summary: Crear un nuevo pedido
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - shippingAddress
+                - paymentInfo
+              properties:
+                shippingAddress:
+                  $ref: '#/components/schemas/ShippingAddress'
+                paymentInfo:
+                  $ref: '#/components/schemas/PaymentInfo'
+      responses:
+        201:
+          description: Pedido creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        400:
+          description: Datos inválidos o carrito vacío
+        401:
+          description: No autorizado
 
   /orders/{id}:
     get:
-      summary: Obtener pedido específico
-      tags:
-        - Pedidos
+      tags: [Orders]
+      summary: Obtener detalles de un pedido
       security:
         - BearerAuth: []
       parameters:
@@ -843,18 +892,23 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        200:
           description: Detalles del pedido
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Order'
+        401:
+          description: No autorizado
+        403:
+          description: No tiene permisos para ver este pedido
+        404:
+          description: Pedido no encontrado
 
   /orders/{id}/status:
     patch:
-      summary: Actualizar estado del pedido
-      tags:
-        - Pedidos
+      tags: [Orders]
+      summary: Actualizar estado de un pedido
       security:
         - BearerAuth: []
       parameters:
@@ -876,18 +930,25 @@ paths:
                   type: string
                   enum: [pending, processing, shipped, delivered, cancelled]
       responses:
-        '200':
-          description: Estado actualizado
+        200:
+          description: Estado actualizado exitosamente
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Order'
+        400:
+          description: Estado inválido
+        401:
+          description: No autorizado
+        403:
+          description: No tiene permisos de administrador
+        404:
+          description: Pedido no encontrado
 
   /orders/{id}/payment:
     patch:
-      summary: Actualizar estado del pago
-      tags:
-        - Pedidos
+      tags: [Orders]
+      summary: Actualizar estado de pago de un pedido
       security:
         - BearerAuth: []
       parameters:
@@ -909,9 +970,46 @@ paths:
                   type: string
                   enum: [pending, completed, failed]
       responses:
-        '200':
-          description: Estado del pago actualizado
+        200:
+          description: Estado de pago actualizado exitosamente
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Order' 
+                $ref: '#/components/schemas/Order'
+        400:
+          description: Estado inválido
+        401:
+          description: No autorizado
+        403:
+          description: No tiene permisos de administrador
+        404:
+          description: Pedido no encontrado
+
+  /orders/analytics:
+    get:
+      tags: [Orders]
+      summary: Obtener análisis de pedidos
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date-time
+      responses:
+        200:
+          description: Análisis de pedidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderAnalytics'
+        401:
+          description: No autorizado
+        403:
+          description: No tiene permisos de administrador 

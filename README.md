@@ -331,6 +331,76 @@ Para eliminar todos los datos y empezar desde cero:
 docker-compose down -v
 ```
 
+
+## Documentación de la API (Swagger)
+
+La API está documentada usando Swagger (OpenAPI 3.0). Podés acceder a la documentación interactiva de dos maneras:
+
+### 1. Interfaz Swagger UI
+
+Una vez que el servidor esté corriendo, visita:
+```
+http://localhost:3000/api-docs
+```
+
+Esta interfaz te permite:
+- Ver todos los endpoints disponibles
+- Leer la documentación detallada de cada endpoint
+- Probar los endpoints directamente desde el navegador
+- Ver los esquemas de datos y modelos
+- Entender los códigos de respuesta y formatos
+
+### 2. Especificación OpenAPI Raw
+
+Para acceder a la especificación OpenAPI en formato JSON:
+```
+http://localhost:3000/api-docs.json
+```
+
+Este endpoint es útil si se necesita importar la documentación en otras herramientas. Más información en la sección de [Documentación de la API con OpenAPI](#documentación-de-la-api-con-openapi)	
+
+
+### Autenticación en Swagger
+
+Para probar endpoints protegidos:
+
+1. Primero, obtén un token JWT usando `/api/auth/login` o `/api/auth/register`
+2. Haz clic en el botón "Authorize" (🔓) en la parte superior
+3. Ingresa tu token en el formato: `Bearer <tu_token>`
+4. Ahora puedes probar los endpoints protegidos
+
+### Endpoints Documentados
+
+La documentación incluye información detallada sobre:
+
+- **Auth** (`/api/auth/*`)
+  - Registro de usuarios
+  - Login
+  - Logout
+  - Perfil de usuario
+
+- **Products** (`/api/products/*`)
+  - CRUD de productos
+  - Análisis de precios
+  - Interacciones de usuarios
+
+- **Cart** (`/api/cart/*`)
+  - Gestión del carrito
+  - Historial del carrito
+  - Revertir estados
+
+- **Orders** (`/api/orders/*`)
+  - Creación de pedidos
+  - Seguimiento de estados
+  - Análisis de ventas
+
+Cada endpoint incluye:
+- Descripción del propósito
+- Parámetros requeridos y opcionales
+- Formato del cuerpo de la petición (si aplica)
+- Posibles respuestas y códigos de estado
+- Ejemplos de uso
+
 ## Documentación de la API con OpenAPI
 
 ### Importar en Postman
