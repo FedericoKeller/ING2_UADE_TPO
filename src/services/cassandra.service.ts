@@ -2,12 +2,10 @@ import { PriceHistory, ProductChange } from '../types/common';
 import { Client, types, policies, QueryOptions } from 'cassandra-driver';
 import config from '../config/config';
 import { createClient } from 'redis';
-import { promisify } from 'util';
 
 // Tipos personalizados para mejorar el tipado
 type CassandraError = Error & { code?: number; info?: string };
 type PriceAnalytics = { changes: number; volatility: number };
-type CacheKey = string;
 
 const cassandraClient = new Client({
   contactPoints: config.cassandra.contactPoints,
@@ -45,12 +43,11 @@ const redisClient = createClient({
 });
 
 export class CassandraService {
-  private static client: Client = cassandraClient;
+  private static readonly client: Client = cassandraClient;
   private static isInitialized = false;
   private static readonly MAX_RETRIES = 30;
   private static readonly RETRY_DELAY = 5000;
   private static readonly CACHE_TTL = 3600; // 1 hora en segundos
-  private static readonly BATCH_SIZE = 100;
 
   /**
    * Inicializa el esquema de Cassandra y establece la conexión
@@ -377,8 +374,8 @@ export class CassandraService {
       productId,
       new Date(),
       changeType,
-      oldValue || '',  // Convert null to empty string
-      newValue || ''   // Convert null to empty string
+      oldValue ?? '',  // Convert null to empty string
+      newValue ?? ''   // Convert null to empty string
     ];
 
     try {

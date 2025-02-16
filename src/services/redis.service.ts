@@ -93,7 +93,7 @@ export class RedisService {
     });
   }
 
-  static async getSession(userId: string): Promise<any | null> {
+  static async getSession(userId: string): Promise<any> {
     const sessionKey = this.SESSION_PREFIX + userId;
     const sessionData = await redisClient.get(sessionKey);
     return sessionData ? JSON.parse(sessionData) : null;
