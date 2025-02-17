@@ -28,4 +28,23 @@ CREATE TABLE product_changes (
     new_value text,
     PRIMARY KEY (product_id, timestamp)
 ) WITH CLUSTERING ORDER BY (timestamp DESC)
-  AND comment = 'Table for storing product changes history'; 
+  AND comment = 'Table for storing product changes history';
+
+-- Create invoice_operations table
+CREATE TABLE invoice_operations (
+    invoice_id text,
+    order_id text,
+    user_id text,
+    operation text,
+    amount decimal,
+    timestamp timestamp,
+    status text,
+    details text,
+    PRIMARY KEY ((invoice_id), timestamp)
+) WITH CLUSTERING ORDER BY (timestamp DESC)
+  AND comment = 'Table for storing invoice operations and audit trail';
+
+-- Create secondary indexes for efficient querying
+CREATE INDEX IF NOT EXISTS idx_invoice_ops_user ON invoice_operations (user_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_ops_order ON invoice_operations (order_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_ops_status ON invoice_operations (status); 

@@ -42,6 +42,19 @@ const redisClient = createClient({
   }
 });
 
+interface CassandraQueryResult {
+  rows: Array<{
+    invoice_id: string;
+    order_id: string;
+    user_id: string;
+    operation: string;
+    amount: { toNumber: () => number };
+    timestamp: Date;
+    status: string;
+    details: string | null;
+  }>;
+}
+
 export class CassandraService {
   private static readonly client: Client = cassandraClient;
   private static isInitialized = false;
@@ -97,7 +110,7 @@ export class CassandraService {
     query: string,
     params: any[],
     options: QueryOptions & { cache?: boolean; cacheKey?: string } = {}
-  ): Promise<T> {
+  ): Promise<{ rows: T[] }> {
     const { cache, cacheKey, ...queryOptions } = options;
 
     if (cache && cacheKey) {
@@ -111,10 +124,10 @@ export class CassandraService {
         const result = await this.client.execute(query, params, { prepare: true, ...queryOptions });
         
         if (cache && cacheKey) {
-          await redisClient.set(cacheKey, JSON.stringify(result.rows), { EX: this.CACHE_TTL });
+          await redisClient.set(cacheKey, JSON.stringify({ rows: result.rows }), { EX: this.CACHE_TTL });
         }
         
-        return result.rows as T;
+        return { rows: result.rows as T[] };
       } catch (error) {
         retries++;
         if (retries === this.MAX_RETRIES) throw error;
@@ -188,7 +201,12 @@ export class CassandraService {
     query += ' ORDER BY timestamp DESC';
 
     try {
-      const rows = await this.executeWithRetry<any[]>(query, params, {
+      const { rows } = await this.executeWithRetry<{
+        product_id: string;
+        timestamp: Date;
+        price: { toNumber: () => number };
+        currency: string;
+      }>(query, params, {
         cache: true,
         cacheKey
       });
@@ -304,8 +322,24 @@ export class CassandraService {
       ) WITH CLUSTERING ORDER BY (timestamp DESC);
     `;
 
+    // Create invoice_operations table if it doesn't exist
+    const createInvoiceOperationsTable = `
+      CREATE TABLE IF NOT EXISTS ${this.client.keyspace}.invoice_operations (
+        invoice_id text,
+        order_id text,
+        user_id text,
+        operation text,
+        amount decimal,
+        timestamp timestamp,
+        status text,
+        details text,
+        PRIMARY KEY ((invoice_id), timestamp)
+      ) WITH CLUSTERING ORDER BY (timestamp DESC);
+    `;
+
     await this.client.execute(createPriceHistoryTable);
     await this.client.execute(createProductChangesTable);
+    await this.client.execute(createInvoiceOperationsTable);
     console.log('Tables created or already exist');
   }
 
@@ -424,6 +458,113 @@ export class CassandraService {
     } catch (error) {
       console.error('Error getting average price:', error);
       throw error;
+    }
+  }
+
+  static async recordInvoiceOperation(data: {
+    invoiceId: string;
+    orderId: string;
+    userId: string;
+    operation: string;
+    amount: number;
+    timestamp: Date;
+    status: string;
+    details?: string;
+  }): Promise<void> {
+    await this.ensureInitialized();
+
+    const query = `
+      INSERT INTO ${this.client.keyspace}.invoice_operations
+      (invoice_id, order_id, user_id, operation, amount, timestamp, status, details)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const params = [
+      data.invoiceId,
+      data.orderId,
+      data.userId,
+      data.operation,
+      types.BigDecimal.fromNumber(data.amount),
+      data.timestamp,
+      data.status,
+      data.details || null
+    ];
+
+    try {
+      await this.executeWithRetry(query, params);
+    } catch (error) {
+      console.error('Error recording invoice operation:', error);
+      throw new Error('Failed to record invoice operation');
+    }
+  }
+
+  static async getInvoiceOperations(
+    invoiceId: string,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<any[]> {
+    await this.ensureInitialized();
+
+    let query = `
+      SELECT * FROM ${this.client.keyspace}.invoice_operations
+      WHERE invoice_id = ?
+    `;
+    const params: any[] = [invoiceId];
+
+    if (startDate && endDate) {
+      query += ' AND timestamp >= ? AND timestamp <= ?';
+      params.push(startDate, endDate);
+    }
+
+    query += ' ORDER BY timestamp DESC';
+
+    try {
+      const { rows } = await this.executeWithRetry<CassandraQueryResult['rows'][0]>(query, params);
+      return rows.map(row => ({
+        invoiceId: row.invoice_id,
+        orderId: row.order_id,
+        userId: row.user_id,
+        operation: row.operation,
+        amount: row.amount.toNumber(),
+        timestamp: row.timestamp,
+        status: row.status,
+        details: row.details
+      }));
+    } catch (error) {
+      console.error('Error getting invoice operations:', error);
+      throw new Error('Failed to get invoice operations');
+    }
+  }
+
+  static async getInvoiceOperationsByUser(
+    userId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<any[]> {
+    await this.ensureInitialized();
+
+    const query = `
+      SELECT * FROM ${this.client.keyspace}.invoice_operations
+      WHERE user_id = ?
+      AND timestamp >= ?
+      AND timestamp <= ?
+      ALLOW FILTERING
+    `;
+
+    try {
+      const { rows } = await this.executeWithRetry<CassandraQueryResult['rows'][0]>(query, [userId, startDate, endDate]);
+      return rows.map(row => ({
+        invoiceId: row.invoice_id,
+        orderId: row.order_id,
+        operation: row.operation,
+        amount: row.amount.toNumber(),
+        timestamp: row.timestamp,
+        status: row.status,
+        details: row.details
+      }));
+    } catch (error) {
+      console.error('Error getting user invoice operations:', error);
+      throw new Error('Failed to get user invoice operations');
     }
   }
 } 

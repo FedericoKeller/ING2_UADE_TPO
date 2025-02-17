@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import jwt, { Secret, SignOptions } from 'jsonwebtoken';
-import { User, IUser } from '../models/user.model';
+import { User } from '../models/user.model';
 import { Neo4jService } from '../services/neo4j.service';
 import { RedisService } from '../services/redis.service';
 import config from '../config/config';
@@ -66,7 +66,7 @@ export class AuthController {
     try {
       const { email, password } = req.body;
 
-      const user = await User.findOne({ email }) as IUser | null;
+      const user = await User.findOne({ email });
       if (!user) {
         res.status(401).json({ error: 'Invalid credentials' });
         return;

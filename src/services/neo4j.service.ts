@@ -300,4 +300,71 @@ export class Neo4jService {
       await session.close();
     }
   }
+
+  // Invoice Management
+  static async recordInvoiceCreation(userId: string, invoiceId: string, amount: number): Promise<void> {
+    const session = await this.getSession();
+    try {
+      await session.run(
+        `MATCH (u:User {userId: $userId})
+         CREATE (i:Invoice {
+           invoiceId: $invoiceId,
+           amount: $amount,
+           timestamp: datetime()
+         })
+         CREATE (u)-[r:GENERATED]->(i)`,
+        { userId, invoiceId, amount }
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  static async getInvoiceRelationships(userId: string): Promise<any[]> {
+    const session = await this.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (u:User {userId: $userId})-[r:GENERATED]->(i:Invoice)
+         RETURN i.invoiceId as invoiceId,
+                i.amount as amount,
+                i.timestamp as timestamp
+         ORDER BY i.timestamp DESC`,
+        { userId }
+      );
+
+      return result.records.map(record => ({
+        invoiceId: record.get('invoiceId'),
+        amount: record.get('amount').toNumber(),
+        timestamp: record.get('timestamp').toString()
+      }));
+    } finally {
+      await session.close();
+    }
+  }
+
+  static async getInvoiceAnalytics(userId: string): Promise<any> {
+    const session = await this.getSession();
+    try {
+      const result = await session.run(
+        `MATCH (u:User {userId: $userId})-[r:GENERATED]->(i:Invoice)
+         WITH u,
+              count(i) as totalInvoices,
+              sum(i.amount) as totalAmount,
+              collect(i.amount) as amounts
+         RETURN totalInvoices,
+                totalAmount,
+                reduce(s = 0, x IN amounts | s + x) / size(amounts) as averageAmount`,
+        { userId }
+      );
+
+      const record = result.records[0];
+      return {
+        totalInvoices: record.get('totalInvoices').toNumber(),
+        totalAmount: record.get('totalAmount').toNumber(),
+        averageAmount: record.get('averageAmount').toNumber()
+      };
+    } finally {
+      await session.close();
+    }
+  }
 } 

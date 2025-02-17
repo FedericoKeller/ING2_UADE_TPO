@@ -31,6 +31,22 @@ CREATE TABLE IF NOT EXISTS product_changes (
     new_value text,
     PRIMARY KEY (product_id, timestamp)
 ) WITH CLUSTERING ORDER BY (timestamp DESC);
+
+CREATE TABLE IF NOT EXISTS invoice_operations (
+    invoice_id text,
+    order_id text,
+    user_id text,
+    operation text,
+    amount decimal,
+    timestamp timestamp,
+    status text,
+    details text,
+    PRIMARY KEY ((invoice_id), timestamp)
+) WITH CLUSTERING ORDER BY (timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_invoice_ops_user ON invoice_operations (user_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_ops_order ON invoice_operations (order_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_ops_status ON invoice_operations (status);
 "
 
 echo "Initialization completed successfully." 

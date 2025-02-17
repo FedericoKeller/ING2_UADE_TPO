@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { setTimeout } from 'timers/promises';
 
 const API_URL = 'http://localhost:3000/api';
 let adminToken: string;
@@ -14,6 +13,23 @@ interface Product {
   stock: number;
 }
 
+interface User {
+  _id: string;
+  email: string;
+  token: string;
+}
+
+interface Order {
+  _id: string;
+  total: number;
+}
+
+interface Invoice {
+  _id: string;
+  invoiceNumber: string;
+  total: number;
+}
+
 // Productos
 const products: { [key: string]: Product } = {};
 
@@ -23,9 +39,12 @@ const orders: { client1: any[], client2: any } = {
   client2: null
 };
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function waitForServer() {
   let retries = 0;
-  const maxRetries = 10;
+  const maxRetries = 30;
+  const retryDelay = 5000;
   
   while (retries < maxRetries) {
     try {
@@ -33,138 +52,148 @@ async function waitForServer() {
       console.log('Server is ready');
       return;
     } catch (error) {
-      console.log('Waiting for server to be ready...');
-      await setTimeout(2000);
       retries++;
+      console.log(`Waiting for server... (${retries}/${maxRetries})`);
+      await sleep(retryDelay);
     }
   }
   throw new Error('Server did not become ready in time');
 }
 
-async function registerUser(userData: any) {
+async function registerUser(userData: any): Promise<User> {
   try {
     const response = await axios.post(`${API_URL}/auth/register`, userData);
-    console.log(`Usuario registrado: ${userData.email}`);
-    return response.data.token;
+    console.log(`User registered: ${userData.email}`);
+    return {
+      _id: response.data.user.id,
+      email: userData.email,
+      token: response.data.token
+    };
   } catch (error) {
-    if (error.response?.status === 400 && error.response?.data?.error === 'Email already registered') {
-      console.log(`Usuario ${userData.email} ya existe, intentando login...`);
-      return loginUser({
-        email: userData.email,
-        password: userData.password
-      });
-    }
-    console.error(`Error registrando usuario ${userData.email}:`, error.response?.data || error.message);
+    console.error(`Error registering user ${userData.email}:`, error);
     throw error;
   }
 }
 
-async function loginUser(credentials: any) {
+async function loginUser(credentials: any): Promise<string> {
   try {
     const response = await axios.post(`${API_URL}/auth/login`, credentials);
-    console.log(`Usuario logueado: ${credentials.email}`);
+    console.log(`User logged in: ${credentials.email}`);
     return response.data.token;
   } catch (error) {
-    console.error(`Error logueando usuario ${credentials.email}:`, error.response?.data || error.message);
+    console.error(`Error logging in user ${credentials.email}:`, error);
     throw error;
   }
 }
 
-async function createProduct(productData: any, token: string) {
+async function createProduct(productData: any, token: string): Promise<Product> {
   try {
     const response = await axios.post(`${API_URL}/products`, productData, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    console.log(`Producto creado: ${productData.name}`);
-    console.log('Product response:', JSON.stringify(response.data, null, 2));
+    console.log(`Product created: ${productData.name}`);
     return response.data;
   } catch (error) {
-    console.error(`Error creando producto ${productData.name}:`, error.response?.data || error.message);
+    console.error(`Error creating product ${productData.name}:`, error);
     throw error;
   }
 }
 
-async function addToCart(userId: string, productId: string, quantity: number, token: string) {
+async function addToCart(userId: string, productId: string, quantity: number, token: string): Promise<void> {
   try {
-    const response = await axios.post(
-      `${API_URL}/cart/add`,
+    await axios.post(`${API_URL}/cart/add`, 
       { productId, quantity },
       { headers: { Authorization: `Bearer ${token}` } }
     );
-    console.log(`Producto agregado al carrito de ${userId}`);
-    return response.data;
+    console.log(`Added product ${productId} to cart for user ${userId}`);
   } catch (error) {
-    console.error(`Error agregando producto al carrito:`, error.response?.data || error.message);
+    console.error(`Error adding product to cart:`, error);
     throw error;
   }
 }
 
-async function createOrder(userId: string, orderData: any, token: string) {
+async function createOrder(userId: string, orderData: any, token: string): Promise<Order> {
   try {
-    const response = await axios.post(
-      `${API_URL}/orders`,
+    const response = await axios.post(`${API_URL}/orders`,
       orderData,
       { headers: { Authorization: `Bearer ${token}` } }
     );
-    console.log(`Pedido creado para ${userId}`);
+    console.log(`Order created for user ${userId}`);
     return response.data;
   } catch (error) {
-    console.error(`Error creando pedido:`, error.response?.data || error.message);
+    console.error(`Error creating order:`, error);
     throw error;
   }
 }
 
-async function updateOrderStatus(orderId: string, status: string, token: string) {
+async function createInvoice(orderId: string, token: string): Promise<Invoice> {
   try {
-    const response = await axios.patch(
+    const response = await axios.post(`${API_URL}/invoices/order/${orderId}`,
+      {},
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    console.log(`Invoice created for order ${orderId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error creating invoice:`, error);
+    throw error;
+  }
+}
+
+async function updateInvoiceStatus(invoiceId: string, status: string, token: string): Promise<void> {
+  try {
+    await axios.patch(`${API_URL}/invoices/${invoiceId}/status`,
+      { status },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    console.log(`Invoice ${invoiceId} status updated to ${status}`);
+  } catch (error) {
+    console.error(`Error updating invoice status:`, error);
+    throw error;
+  }
+}
+
+async function simulateProductInteraction(userId: string, productId: string, token: string, productName: string): Promise<void> {
+  try {
+    await axios.post(`${API_URL}/products/${productId}/interaction`,
+      {
+        action: 'VIEW',
+        productName
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    console.log(`Recorded interaction for user ${userId} with product ${productId}`);
+  } catch (error) {
+    console.error(`Error recording interaction:`, error);
+    throw error;
+  }
+}
+
+async function updateOrderStatus(orderId: string, status: string, token: string): Promise<void> {
+  try {
+    await axios.patch(
       `${API_URL}/orders/${orderId}/status`,
       { status },
       { headers: { Authorization: `Bearer ${token}` } }
     );
-    console.log(`Estado de pedido actualizado: ${status}`);
-    return response.data;
+    console.log(`Order status updated: ${orderId} -> ${status}`);
   } catch (error) {
-    console.error(`Error actualizando estado de pedido:`, error.response?.data || error.message);
+    console.error(`Error updating order status:`, error);
     throw error;
   }
 }
 
-async function updatePaymentStatus(orderId: string, status: string, token: string) {
+async function updatePaymentStatus(orderId: string, status: string, token: string): Promise<void> {
   try {
-    const response = await axios.patch(
+    await axios.patch(
       `${API_URL}/orders/${orderId}/payment`,
       { status },
       { headers: { Authorization: `Bearer ${token}` } }
     );
-    console.log(`Estado de pago actualizado: ${status}`);
-    return response.data;
+    console.log(`Payment status updated: ${orderId} -> ${status}`);
   } catch (error) {
-    console.error(`Error actualizando estado de pago:`, error.response?.data || error.message);
+    console.error(`Error updating payment status:`, error);
     throw error;
-  }
-}
-
-async function simulateProductInteraction(userId: string, productId: string, token: string, productName: string) {
-  try {
-    // Simular vista del producto
-    await axios.post(
-      `${API_URL}/products/${productId}/interaction`,
-      { action: 'VIEW', productName },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    
-    // Simular like del producto (50% de probabilidad)
-    if (Math.random() > 0.5) {
-      await axios.post(
-        `${API_URL}/products/${productId}/interaction`,
-        { action: 'LIKE', productName },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-    }
-    
-    console.log(`Interacciones simuladas para producto ${productId} (${productName})`);
-  } catch (error) {
-    console.error(`Error simulando interacciones:`, error.response?.data || error.message);
   }
 }
 
@@ -177,7 +206,7 @@ async function populateData() {
 
     // 1. Registrar usuarios
     console.log('\n1. Registrando usuarios...');
-    adminToken = await registerUser({
+    const admin = await registerUser({
       email: 'admin@demo.com',
       password: 'admin123456',
       firstName: 'Admin',
@@ -185,14 +214,14 @@ async function populateData() {
       role: 'admin'
     });
 
-    client1Token = await registerUser({
+    const client1 = await registerUser({
       email: 'cliente1@demo.com',
       password: 'cliente123456',
       firstName: 'Juan',
       lastName: 'Pérez'
     });
 
-    client2Token = await registerUser({
+    const client2 = await registerUser({
       email: 'cliente2@demo.com',
       password: 'cliente123456',
       firstName: 'María',
@@ -200,7 +229,7 @@ async function populateData() {
     });
 
     // Esperar un momento para que se procesen los registros
-    await setTimeout(1000);
+    await sleep(1000);
 
     // 2. Crear productos
     console.log('\n2. Creando productos...');
@@ -221,7 +250,7 @@ async function populateData() {
         screen: '6.1 inch',
         camera: '48MP'
       }
-    }, adminToken);
+    }, admin.token);
 
     products.macbook = await createProduct({
       name: 'MacBook Pro M2',
@@ -240,7 +269,7 @@ async function populateData() {
         ram: '8GB',
         screen: '13.3 inch'
       }
-    }, adminToken);
+    }, admin.token);
 
     products.ipad = await createProduct({
       name: 'iPad Air',
@@ -259,7 +288,7 @@ async function populateData() {
         screen: '10.9 inch',
         chip: 'M1'
       }
-    }, adminToken);
+    }, admin.token);
 
     // Productos adicionales
     products.airpods = await createProduct({
@@ -275,7 +304,7 @@ async function populateData() {
         battery: '6 hours',
         features: ['Noise Cancellation', 'Transparency Mode']
       }
-    }, adminToken);
+    }, admin.token);
 
     products.appleWatch = await createProduct({
       name: 'Apple Watch Series 8',
@@ -290,7 +319,7 @@ async function populateData() {
         color: 'Midnight',
         features: ['ECG', 'Blood Oxygen']
       }
-    }, adminToken);
+    }, admin.token);
 
     products.monitor = await createProduct({
       name: 'Studio Display',
@@ -305,7 +334,7 @@ async function populateData() {
         size: '27 inch',
         brightness: '600 nits'
       }
-    }, adminToken);
+    }, admin.token);
 
     products.keyboard = await createProduct({
       name: 'Magic Keyboard',
@@ -320,7 +349,7 @@ async function populateData() {
         color: 'Silver',
         features: ['Touch ID', 'Numeric Pad']
       }
-    }, adminToken);
+    }, admin.token);
 
     products.mouse = await createProduct({
       name: 'Magic Mouse',
@@ -335,7 +364,7 @@ async function populateData() {
         battery: 'Rechargeable',
         connectivity: 'Bluetooth'
       }
-    }, adminToken);
+    }, admin.token);
 
     products.pencil = await createProduct({
       name: 'Apple Pencil',
@@ -350,7 +379,7 @@ async function populateData() {
         compatibility: 'iPad Pro, iPad Air',
         features: ['Wireless Charging', 'Magnetic Attachment']
       }
-    }, adminToken);
+    }, admin.token);
 
     products.homepod = await createProduct({
       name: 'HomePod mini',
@@ -365,7 +394,7 @@ async function populateData() {
         features: ['Siri', '360º Audio'],
         height: '3.3 inches'
       }
-    }, adminToken);
+    }, admin.token);
 
     products.magsafe = await createProduct({
       name: 'MagSafe Charger',
@@ -380,7 +409,7 @@ async function populateData() {
         compatibility: 'iPhone 12 and later',
         type: 'Wireless'
       }
-    }, adminToken);
+    }, admin.token);
 
     products.airtag = await createProduct({
       name: 'AirTag',
@@ -395,7 +424,7 @@ async function populateData() {
         features: ['Precision Finding', 'Lost Mode'],
         waterResistant: 'IP67'
       }
-    }, adminToken);
+    }, admin.token);
 
     // 3. Simular interacciones de usuario
     console.log('\n3. Simulando interacciones de usuario...');
@@ -418,11 +447,11 @@ async function populateData() {
     
     for (const product of client1Products) {
       // Simular múltiples interacciones para crear un perfil más robusto
-      await simulateProductInteraction('cliente1', product.id, client1Token, product.name); // VIEW
-      await setTimeout(200);
+      await simulateProductInteraction(client1._id, product.id, client1.token, product.name);
+      await sleep(200);
       if (Math.random() > 0.3) { // 70% chance of a second view
-        await simulateProductInteraction('cliente1', product.id, client1Token, product.name); // VIEW
-        await setTimeout(200);
+        await simulateProductInteraction(client1._id, product.id, client1.token, product.name);
+        await sleep(200);
       }
     }
 
@@ -437,11 +466,11 @@ async function populateData() {
     
     for (const product of client2Products) {
       // Simular múltiples interacciones para crear un perfil más robusto
-      await simulateProductInteraction('cliente2', product.id, client2Token, product.name); // VIEW
-      await setTimeout(200);
+      await simulateProductInteraction(client2._id, product.id, client2.token, product.name);
+      await sleep(200);
       if (Math.random() > 0.3) { // 70% chance of a second view
-        await simulateProductInteraction('cliente2', product.id, client2Token, product.name); // VIEW
-        await setTimeout(200);
+        await simulateProductInteraction(client2._id, product.id, client2.token, product.name);
+        await sleep(200);
       }
     }
 
@@ -462,36 +491,39 @@ async function populateData() {
         const randomProduct = products_array[Math.floor(Math.random() * products_array.length)];
         
         // Simular interacciones antes de agregar al carrito
-        await simulateProductInteraction('cliente1', randomProduct._id, client1Token, randomProduct.name);
-        await setTimeout(200); // Pequeña pausa entre interacciones
+        await simulateProductInteraction(client1._id, randomProduct._id, client1.token, randomProduct.name);
+        await sleep(200); // Pequeña pausa entre interacciones
         
-        await addToCart('cliente1', randomProduct._id, 1, client1Token);
+        await addToCart(client1._id, randomProduct._id, 1, client1.token);
       }
 
       // Crear pedido
-      const order = await createOrder('cliente1', {
+      const order = await createOrder(client1._id, {
         shippingAddress,
         paymentInfo: {
           method: 'credit_card',
           transactionId: `TRANS-C1-${i + 1}`
         }
-      }, client1Token);
+      }, client1.token);
 
       // Guardar el pedido
       orders.client1.push(order);
 
-      // Actualizar estado del pedido
-      await updateOrderStatus(order._id, 'processing', adminToken);
-      await updatePaymentStatus(order._id, 'completed', adminToken);
+      // Actualizar estados del pedido
+      await updateOrderStatus(order._id, 'processing', admin.token);
+      await updatePaymentStatus(order._id, 'completed', admin.token);
+      await simulateProductInteraction(client1._id, order._id, admin.token, order._id);
+      await sleep(500);
 
-      // Esperar un poco entre pedidos
-      await setTimeout(500);
+      // Crear y actualizar factura
+      const invoice = await createInvoice(order._id, admin.token);
+      await updateInvoiceStatus(invoice._id, 'paid', admin.token);
     }
 
     // Cliente 2: Mantener la lógica original pero agregar interacciones
-    await simulateProductInteraction('cliente2', products.ipad._id, client2Token, products.ipad.name);
-    await setTimeout(200);
-    await addToCart('cliente2', products.ipad._id, 2, client2Token);
+    await simulateProductInteraction(client2._id, products.ipad._id, client2.token, products.ipad.name);
+    await sleep(200);
+    await addToCart(client2._id, products.ipad._id, 2, client2.token);
 
     // Simular algunas interacciones adicionales sin compra para el cliente2
     const otherProducts = [
@@ -500,12 +532,12 @@ async function populateData() {
       { id: products.airpods._id, name: products.airpods.name }
     ];
     for (const product of otherProducts) {
-      await simulateProductInteraction('cliente2', product.id, client2Token, product.name);
-      await setTimeout(200);
+      await simulateProductInteraction(client2._id, product.id, client2.token, product.name);
+      await sleep(200);
     }
 
     // Cliente 2: Crear pedido
-    const order2 = await createOrder('cliente2', {
+    const order2 = await createOrder(client2._id, {
       shippingAddress: {
         street: 'Av. Santa Fe 2345',
         city: 'Buenos Aires',
@@ -517,21 +549,26 @@ async function populateData() {
         method: 'debit_card',
         transactionId: 'TRANS-002'
       }
-    }, client2Token);
+    }, client2.token);
 
     // Guardar el pedido del cliente 2
     orders.client2 = order2;
 
     // 4. Actualizar estados de pedidos
     console.log('\n4. Actualizando estados de pedidos...');
-    await updateOrderStatus(order2._id, 'processing', adminToken);
-    await updatePaymentStatus(order2._id, 'completed', adminToken);
+    await updateOrderStatus(order2._id, 'processing', admin.token);
+    await updatePaymentStatus(order2._id, 'pending', admin.token);
+    await simulateProductInteraction(client2._id, order2._id, admin.token, order2._id);
+    await sleep(500);
+
+    const invoice2 = await createInvoice(order2._id, admin.token);
+    await updateInvoiceStatus(invoice2._id, 'pending', admin.token);
 
     console.log('\n¡Datos de demo populados exitosamente!');
     console.log('\nTokens generados:');
-    console.log('Admin:', adminToken);
-    console.log('Cliente 1:', client1Token);
-    console.log('Cliente 2:', client2Token);
+    console.log('Admin:', admin.token);
+    console.log('Cliente 1:', client1.token);
+    console.log('Cliente 2:', client2.token);
     
     console.log('\nIDs de productos:');
     Object.entries(products).forEach(([key, product]) => {
@@ -548,6 +585,8 @@ async function populateData() {
 
   } catch (error) {
     console.error('Error durante la población de datos:', error);
+  } finally {
+    process.exit();
   }
 }
 
