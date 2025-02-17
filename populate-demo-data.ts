@@ -512,7 +512,6 @@ async function populateData() {
       // Actualizar estados del pedido
       await updateOrderStatus(order._id, 'processing', admin.token);
       await updatePaymentStatus(order._id, 'completed', admin.token);
-      await simulateProductInteraction(client1._id, order._id, admin.token, order._id);
       await sleep(500);
 
       // Crear y actualizar factura
@@ -558,7 +557,6 @@ async function populateData() {
     console.log('\n4. Actualizando estados de pedidos...');
     await updateOrderStatus(order2._id, 'processing', admin.token);
     await updatePaymentStatus(order2._id, 'pending', admin.token);
-    await simulateProductInteraction(client2._id, order2._id, admin.token, order2._id);
     await sleep(500);
 
     const invoice2 = await createInvoice(order2._id, admin.token);
