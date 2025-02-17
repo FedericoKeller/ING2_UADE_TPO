@@ -270,4 +270,86 @@ export class ProductController {
       res.status(500).json({ error: 'Error retrieving catalog changes' });
     }
   }
+
+  static async getPriceList(req: Request, res: Response) {
+    try {
+      const { category, startDate, endDate } = req.query;
+      const start = startDate ? new Date(startDate as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const end = endDate ? new Date(endDate as string) : new Date();
+
+      // Obtener productos con sus precios actuales
+      let query: any = {};
+      if (category) {
+        query.category = category;
+      }
+
+      const products = await Product.find(query).select('name sku category price stock');
+
+      // Obtener historial de precios para cada producto
+      const priceListWithHistory = await Promise.all(
+        products.map(async (product) => {
+          const [priceHistory, priceAnalytics] = await Promise.all([
+            CassandraService.getPriceHistory(product._id.toString(), start, end),
+            CassandraService.getPriceAnalytics(product._id.toString(), start, end)
+          ]);
+
+          const priceChanges = priceHistory.length > 1 ? priceHistory.length - 1 : 0;
+          const previousPrice = priceHistory.length > 1 ? priceHistory[1].price : product.price;
+          const priceVariation = previousPrice ? ((product.price - previousPrice) / previousPrice) * 100 : 0;
+
+          return {
+            id: product._id,
+            name: product.name,
+            sku: product.sku,
+            category: product.category,
+            currentPrice: product.price,
+            stock: product.stock,
+            priceHistory: {
+              changes: priceChanges,
+              variation: Number(priceVariation.toFixed(2)),
+              previousPrice,
+              history: priceHistory.slice(0, 5) // Últimos 5 cambios
+            },
+            analytics: {
+              averagePrice: priceAnalytics.averagePrice,
+              volatility: priceAnalytics.volatility
+            }
+          };
+        })
+      );
+
+      // Agrupar por categoría
+      const priceListByCategory = priceListWithHistory.reduce((acc: any, item) => {
+        const category = item.category;
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push(item);
+        return acc;
+      }, {});
+
+      // Calcular estadísticas generales
+      const stats = {
+        totalProducts: products.length,
+        averagePrice: Number((products.reduce((sum, p) => sum + p.price, 0) / products.length).toFixed(2)),
+        priceRanges: {
+          min: Math.min(...products.map(p => p.price)),
+          max: Math.max(...products.map(p => p.price))
+        },
+        categoryCounts: Object.keys(priceListByCategory).reduce((acc: any, category) => {
+          acc[category] = priceListByCategory[category].length;
+          return acc;
+        }, {})
+      };
+
+      res.json({
+        stats,
+        period: { start, end },
+        priceList: priceListByCategory
+      });
+    } catch (error) {
+      console.error('Get price list error:', error);
+      res.status(500).json({ error: 'Error retrieving price list' });
+    }
+  }
 } 

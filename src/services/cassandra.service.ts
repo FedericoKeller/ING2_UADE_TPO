@@ -556,4 +556,16 @@ export class CassandraService {
       throw new Error('Failed to get user invoice operations');
     }
   }
+
+  static async getPriceAnalytics(productId: string, startDate: Date, endDate: Date): Promise<{ averagePrice: number; volatility: number }> {
+    const [averagePrice, volatilityData] = await Promise.all([
+      this.getAveragePriceByPeriod(productId, startDate, endDate),
+      this.getPriceVolatility(productId, startDate, endDate)
+    ]);
+
+    return {
+      averagePrice: Number(averagePrice.toFixed(2)),
+      volatility: Number(volatilityData.volatility.toFixed(2))
+    };
+  }
 } 

@@ -117,6 +117,41 @@ const recordInteractionValidation = [
 
 /**
  * @swagger
+ * /products/prices:
+ *   get:
+ *     summary: Obtener lista de precios actualizada
+ *     tags: [Products]
+ *     parameters:
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filtrar por categoría
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Fecha inicial para el historial
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Fecha final para el historial
+ *     responses:
+ *       200:
+ *         description: Lista de precios con historial y estadísticas
+ */
+router.get('/prices',
+  query('category').optional().isString(),
+  query('startDate').optional().isISO8601(),
+  query('endDate').optional().isISO8601(),
+  ProductController.getPriceList
+);
+
+/**
+ * @swagger
  * /products:
  *   post:
  *     summary: Crear un nuevo producto
@@ -132,10 +167,6 @@ const recordInteractionValidation = [
  *     responses:
  *       201:
  *         description: Producto creado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Product'
  *       400:
  *         description: Datos inválidos
  *       401:
@@ -153,8 +184,32 @@ router.post('/',
 /**
  * @swagger
  * /products/{id}:
+ *   get:
+ *     summary: Obtener un producto específico
+ *     tags: [Products]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del producto
+ *     responses:
+ *       200:
+ *         description: Producto encontrado
+ *       404:
+ *         description: Producto no encontrado
+ */
+router.get('/:id',
+  param('id').isMongoId(),
+  ProductController.getProduct
+);
+
+/**
+ * @swagger
+ * /products/{id}:
  *   put:
- *     summary: Actualizar un producto existente
+ *     summary: Actualizar un producto
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -174,23 +229,17 @@ router.post('/',
  *     responses:
  *       200:
  *         description: Producto actualizado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Product'
  *       400:
  *         description: Datos inválidos
  *       401:
  *         description: No autorizado
- *       403:
- *         description: No tiene permisos de administrador
  *       404:
  *         description: Producto no encontrado
  */
 router.put('/:id',
   authenticate,
   authorize('admin'),
-  updateProductValidation,
+  param('id').isMongoId(),
   ProductController.updateProduct
 );
 
@@ -214,8 +263,6 @@ router.put('/:id',
  *         description: Producto eliminado exitosamente
  *       401:
  *         description: No autorizado
- *       403:
- *         description: No tiene permisos de administrador
  *       404:
  *         description: Producto no encontrado
  */
@@ -224,55 +271,6 @@ router.delete('/:id',
   authorize('admin'),
   param('id').isMongoId(),
   ProductController.deleteProduct
-);
-
-/**
- * @swagger
- * /products/{id}:
- *   get:
- *     summary: Obtener detalles de un producto
- *     tags: [Products]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: ID del producto
- *     responses:
- *       200:
- *         description: Detalles del producto
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 product:
- *                   $ref: '#/components/schemas/Product'
- *                 priceHistory:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/PriceHistory'
- *                 changes:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       timestamp:
- *                         type: string
- *                         format: date-time
- *                       changeType:
- *                         type: string
- *                       oldValue:
- *                         type: string
- *                       newValue:
- *                         type: string
- *       404:
- *         description: Producto no encontrado
- */
-router.get('/:id',
-  param('id').isMongoId(),
-  ProductController.getProduct
 );
 
 /**
@@ -310,26 +308,12 @@ router.get('/:id',
  *     responses:
  *       200:
  *         description: Lista paginada de productos
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Product'
- *                 total:
- *                   type: integer
- *                 page:
- *                   type: integer
- *                 totalPages:
- *                   type: integer
- *                 hasMore:
- *                   type: boolean
  */
 router.get('/',
-  listProductsValidation,
+  query('page').optional().isInt({ min: 1 }),
+  query('limit').optional().isInt({ min: 1, max: 100 }),
+  query('category').optional().isString(),
+  query('search').optional().isString(),
   ProductController.listProducts
 );
 
