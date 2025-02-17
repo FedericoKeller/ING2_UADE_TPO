@@ -421,26 +421,15 @@ export class CassandraService {
   }
 
   static async getProductChanges(productId: string): Promise<ProductChange[]> {
-    await this.ensureInitialized();
-    const query = `
-      SELECT product_id, timestamp, change_type, old_value, new_value
-      FROM ${this.client.keyspace}.product_changes
-      WHERE product_id = ?
-    `;
+    const query = 'SELECT * FROM product_changes WHERE product_id = ? ORDER BY timestamp DESC';
+    const result = await this.executeWithRetry<ProductChange>(query, [productId]);
+    return result.rows;
+  }
 
-    try {
-      const result = await this.client.execute(query, [productId], { prepare: true });
-      return result.rows.map(row => ({
-        productId: row.product_id,
-        timestamp: row.timestamp,
-        changeType: row.change_type,
-        oldValue: row.old_value,
-        newValue: row.new_value
-      }));
-    } catch (error) {
-      console.error('Error getting product changes:', error);
-      throw error;
-    }
+  static async getAllProductChanges(startDate: Date, endDate: Date): Promise<ProductChange[]> {
+    const query = 'SELECT * FROM product_changes WHERE timestamp >= ? AND timestamp <= ? ALLOW FILTERING';
+    const result = await this.executeWithRetry<ProductChange>(query, [startDate, endDate]);
+    return result.rows;
   }
 
   // Price Analysis

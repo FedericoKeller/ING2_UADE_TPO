@@ -217,4 +217,57 @@ export class ProductController {
       res.status(500).json({ error: 'Error recording interaction' });
     }
   }
+
+  static async getCatalogChanges(req: Request, res: Response) {
+    try {
+      const { startDate, endDate, productId } = req.query;
+      const start = startDate ? new Date(startDate as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default últimos 30 días
+      const end = endDate ? new Date(endDate as string) : new Date();
+
+      let changes;
+      if (productId) {
+        // Obtener cambios para un producto específico
+        changes = await CassandraService.getProductChanges(productId as string);
+      } else {
+        // Obtener todos los cambios en el rango de fechas
+        changes = await CassandraService.getAllProductChanges(start, end);
+      }
+
+      // Agrupar cambios por tipo
+      const changesByType = changes.reduce((acc: any, change: any) => {
+        const type = change.change_type;
+        if (!acc[type]) {
+          acc[type] = [];
+        }
+        acc[type].push({
+          productId: change.product_id,
+          timestamp: change.timestamp,
+          oldValue: change.old_value ? JSON.parse(change.old_value) : null,
+          newValue: change.new_value ? JSON.parse(change.new_value) : null
+        });
+        return acc;
+      }, {});
+
+      // Obtener estadísticas
+      const stats = {
+        totalChanges: changes.length,
+        changesByType: Object.keys(changesByType).reduce((acc: any, type) => {
+          acc[type] = changesByType[type].length;
+          return acc;
+        }, {}),
+        period: {
+          start,
+          end
+        }
+      };
+
+      res.json({
+        stats,
+        changes: changesByType
+      });
+    } catch (error) {
+      console.error('Get catalog changes error:', error);
+      res.status(500).json({ error: 'Error retrieving catalog changes' });
+    }
+  }
 } 

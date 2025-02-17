@@ -422,4 +422,77 @@ router.post('/:id/interaction',
   ProductController.recordInteraction
 );
 
+/**
+ * @swagger
+ * /products/catalog/changes:
+ *   get:
+ *     summary: Obtener historial de cambios del catálogo
+ *     tags: [Products]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Fecha inicial para filtrar cambios
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Fecha final para filtrar cambios
+ *       - in: query
+ *         name: productId
+ *         schema:
+ *           type: string
+ *         description: ID del producto para filtrar cambios específicos
+ *     responses:
+ *       200:
+ *         description: Historial de cambios del catálogo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 stats:
+ *                   type: object
+ *                   properties:
+ *                     totalChanges:
+ *                       type: integer
+ *                     changesByType:
+ *                       type: object
+ *                     period:
+ *                       type: object
+ *                       properties:
+ *                         start:
+ *                           type: string
+ *                           format: date-time
+ *                         end:
+ *                           type: string
+ *                           format: date-time
+ *                 changes:
+ *                   type: object
+ *                   additionalProperties:
+ *                     type: array
+ *                     items:
+ *                       type: object
+ *                       properties:
+ *                         productId:
+ *                           type: string
+ *                         timestamp:
+ *                           type: string
+ *                           format: date-time
+ *                         oldValue:
+ *                           type: object
+ *                         newValue:
+ *                           type: object
+ */
+router.get('/catalog/changes',
+  authenticate,
+  query('startDate').optional().isISO8601(),
+  query('endDate').optional().isISO8601(),
+  query('productId').optional().isMongoId(),
+  ProductController.getCatalogChanges
+);
+
 export default router; 
