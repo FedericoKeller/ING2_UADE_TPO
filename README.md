@@ -7,7 +7,7 @@ Este repositorio contiene la propuesta de solución para el Trabajo Práctico Ob
 ### Opción 1: Instalación Local
 Antes de comenzar, asegurar de tener instalado:
 
-- Node.js (v16 o superior)
+- Node.js (v20 o superior)
 - MongoDB (v4.4 o superior)
 - Redis (v6 o superior)
 - Neo4j (v4.4 o superior)

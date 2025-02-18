@@ -202,7 +202,12 @@ export class ProductController {
   static async recordInteraction(req: AuthenticatedRequest, res: Response) {
     try {
       const { id } = req.params;
-      const { action, productName } = req.body;
+      let { action, productName } = req.body;
+
+      if(!productName) {
+        const product = await Product.findById(id);
+        productName = product?.name;
+      }
 
       await Neo4jService.recordUserInteraction(
         req.user!._id.toString(),
